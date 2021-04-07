@@ -43,13 +43,16 @@ extension BLEManager: CBPeripheralManagerDelegate,CBPeripheralDelegate{
         
         if peripheral.state == .poweredOn{
             
-            peripherialManager.startAdvertising([CBAdvertisementDataServiceUUIDsKey:[hardCodeUUID],CBAdvertisementDataLocalNameKey:userName])
+            let data = CBMutableCharacteristic(type: hardCodeUUID, properties: [.read], value: userName.data(using: .utf8), permissions: [.readable])
+        
+            
+            peripherialManager.startAdvertising([CBAdvertisementDataServiceUUIDsKey:[hardCodeUUID],CBAdvertisementDataManufacturerDataKey:userName.data(using: .utf8), CBAdvertisementDataLocalNameKey:"Jael"])
             
             let serialService = CBMutableService(type: hardCodeUUID, primary: true)
-            let writeCharacteristics = CBMutableCharacteristic(type: hardCodeUUID,
-                                                               properties: [.notify,.read,.write], value: nil,
-                                                               permissions: [.writeable,.readable])
-            serialService.characteristics = [writeCharacteristics]
+//            let writeCharacteristics = CBMutableCharacteristic(type: hardCodeUUID,
+//                                                               properties: [.notify,.read,.write], value: nil,
+//                                                               permissions: [.writeable,.readable])
+            serialService.characteristics = [data]
             peripherialManager.add(serialService)
             
             
@@ -65,6 +68,7 @@ extension BLEManager: CBPeripheralManagerDelegate,CBPeripheralDelegate{
                 
                 //here is the message text that we receive, use it as you wish.
                 let messageText = String(data: value, encoding: String.Encoding.utf8) as String?
+                debugPrint("Zelda at %d", messageText)
             }
             self.peripherialManager.respond(to: request, withResult: .success)
         }
@@ -145,10 +149,11 @@ extension BLEManager:CBCentralManagerDelegate{
         
         // Reject if the signal strength is too low to attempt data transfer.
         // Change the minimum RSSI value depending the case .
-        guard RSSI.intValue >= -50 else{debugPrint("Discovered perhiperal not in expected range, at %d", RSSI.intValue);return}
+//        guard RSSI.intValue >= -50 else
+//        {debugPrint("Discovered perhiperal not in expected range, at %d", RSSI.intValue);return}
         
         if AndroidMobileIsFound == false {
-            guard let name  = advertisementData[CBAdvertisementDataLocalNameKey] as? String else{
+            guard let name  = advertisementData[CBAdvertisementDataManufacturerDataKey] as? String else{
                 peripheralName = "Unknown name"
                 return
             }
