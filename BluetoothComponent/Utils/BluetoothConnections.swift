@@ -12,15 +12,16 @@ class BLEManager:NSObject,ObservableObject{
     let userName = "Jael1214"
     var hardCodeUUID = CBUUID(string: "42b696be-e823-11ea-adc1-0242ac120002")
     var peripheralName:String!
+    private var advertisementDataToSend = [CBAdvertisementDataServiceDataKey:"example",CBAdvertisementDataLocalNameKey:"Jael2522"]
     @Published var peripherals = [Peripheral]()
-    @Published var isSwitchedOn = false
+    @Published var isSwitchedOn = true
     @Published var AndroidMobileIsFound:Bool = false
     var centralManager:CBCentralManager!
     var peripherialManager:CBPeripheralManager!
     
     override init(){
         super.init()
-        centralManager = CBCentralManager(delegate: self, queue: DispatchQueue.main)
+        centralManager = CBCentralManager(delegate: self, queue: nil)
         centralManager.delegate = self
         peripherialManager = CBPeripheralManager(delegate: self, queue: nil)
         
@@ -30,7 +31,7 @@ class BLEManager:NSObject,ObservableObject{
     
     func startScanningOrBroadCasting(){
         /* here we scan for the devices with a UUID that is specific to our app, which filters out other BLE devices.  */
-        centralManager.scanForPeripherals(withServices: [hardCodeUUID], options: [CBCentralManagerScanOptionAllowDuplicatesKey: true])
+        centralManager.scanForPeripherals(withServices: nil, options: [CBCentralManagerScanOptionAllowDuplicatesKey: true])
     }
     func stopScanningOrStopBroadcasting(){
         centralManager.stopScan()
@@ -42,16 +43,14 @@ extension BLEManager: CBPeripheralManagerDelegate,CBPeripheralDelegate{
     func peripheralManagerDidUpdateState(_ peripheral: CBPeripheralManager) {
         
         if peripheral.state == .poweredOn{
-            
-            let data = CBMutableCharacteristic(type: hardCodeUUID, properties: [.read], value: userName.data(using: .utf8), permissions: [.readable])
         
+            let data = CBMutableCharacteristic(type: hardCodeUUID, properties: [.read], value: userName.data(using: .utf8), permissions: [.readable])
+         
+              
+            peripherialManager.startAdvertising(advertisementDataToSend)
             
-            peripherialManager.startAdvertising([CBAdvertisementDataServiceUUIDsKey:[hardCodeUUID],CBAdvertisementDataManufacturerDataKey:userName.data(using: .utf8), CBAdvertisementDataLocalNameKey:"Jael"])
             
             let serialService = CBMutableService(type: hardCodeUUID, primary: true)
-//            let writeCharacteristics = CBMutableCharacteristic(type: hardCodeUUID,
-//                                                               properties: [.notify,.read,.write], value: nil,
-//                                                               permissions: [.writeable,.readable])
             serialService.characteristics = [data]
             peripherialManager.add(serialService)
             
@@ -66,7 +65,6 @@ extension BLEManager: CBPeripheralManagerDelegate,CBPeripheralDelegate{
         for request in requests {
             if let value = request.value {
                 
-                //here is the message text that we receive, use it as you wish.
                 let messageText = String(data: value, encoding: String.Encoding.utf8) as String?
                 debugPrint("Zelda at %d", messageText)
             }
@@ -97,9 +95,12 @@ extension BLEManager: CBPeripheralManagerDelegate,CBPeripheralDelegate{
     func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
         guard error != nil else{ return}
         guard let characteristics = service.characteristics else { return }
+       
         
         for characteristic in characteristics {
             let characteristicOfAndroidDevice = characteristic as CBCharacteristic
+            
+            
             if characteristicOfAndroidDevice.uuid.isEqual(hardCodeUUID){
                 let dataToSend = userName.data(using: .utf8)
                 peripheral.writeValue(dataToSend!, for: characteristicOfAndroidDevice, type: CBCharacteristicWriteType.withResponse)
@@ -108,6 +109,10 @@ extension BLEManager: CBPeripheralManagerDelegate,CBPeripheralDelegate{
             }
             peripheral.setNotifyValue(true, for: characteristic)
         }
+    }
+    
+    func peripheralManagerDidStartAdvertising(_ peripheral: CBPeripheralManager, error: Error?) {
+        print("Periferico",peripheral)
     }
     
 }
@@ -122,60 +127,49 @@ extension BLEManager:CBCentralManagerDelegate{
         switch central.state{
         case .unknown:
             isSwitchedOn = false
-            fallthrough
+            
         case .resetting:
             isSwitchedOn = false
-            fallthrough
+        
         case .unsupported:
             isSwitchedOn = false
-            fallthrough
+        
         case .unauthorized:
             isSwitchedOn = false
-            fallthrough
         case .poweredOff:
             isSwitchedOn = false
-            fallthrough
+        
         case .poweredOn:
             isSwitchedOn = true
-            fallthrough
+            
         @unknown default:
             isSwitchedOn = false
             break;
         }
         
     }
-    
+   
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
-        
-        // Reject if the signal strength is too low to attempt data transfer.
-        // Change the minimum RSSI value depending the case .
-//        guard RSSI.intValue >= -50 else
-//        {debugPrint("Discovered perhiperal not in expected range, at %d", RSSI.intValue);return}
-        
-        if AndroidMobileIsFound == false {
-            guard let name  = advertisementData[CBAdvertisementDataManufacturerDataKey] as? String else{
+
+            if  let name  = advertisementData[CBAdvertisementDataLocalNameKey] as? String {
+                peripheralName = name
+            }else{
                 peripheralName = "Unknown name"
-                return
             }
-            
-            peripheralName = name
-            
+
+           
+
             let newPeripheral = Peripheral(id: peripherals.count, name: peripheralName, rssi: RSSI.intValue)
-            
+
             print(newPeripheral)
-            
+
             peripherals.append(newPeripheral)
-        }else{
-            stopScanningOrStopBroadcasting()
-        }
-        
-        
         
     }
     
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         peripheral.delegate  = self
-        peripheral.discoverServices([hardCodeUUID])
+        peripheral.discoverServices(nil)
     }
     
 }
